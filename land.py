@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Jan  8 13:52:23 2019
+
+@author: nicholas-martino
+"""
+
 import os
 import sys
 import time
