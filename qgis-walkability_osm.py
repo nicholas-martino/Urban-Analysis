@@ -37,10 +37,10 @@ class Walkability(QgsProcessingAlgorithm):
     aggregation_scale = 'aggregation_scale'     
     street_network = 'street_network'
     intersections = 'intersections'
-    bcaa_fabric = 'bcaa_fabric'
+    osm_land = 'osm_land'
     sample_input ='sample_input'
     sample_output = 'sample_output'
-    source = 'source'
+    target_crs = 'target_crs'
      
     def __init__(self):
         super().__init__()
@@ -62,15 +62,16 @@ class Walkability(QgsProcessingAlgorithm):
 
     def shortHelpString(self):
         return self.tr(
-'''The algorithm calculates walkability-related measurements for sample features located at the surroundings of certain points in space, based on data classified by the British Columbia Assessment Authority (https://www.bcassessment.ca/). Be sure to input all layers with the same coordinate reference system. 
+'''The algorithm calculates walkability-related measurements for sample features located at the surroundings of certain points in space, based on data available at Open Street Maps. 
 INPUTS:
 Initial Point(s) = A point layer to define which features from the Sample will be analysed;
 Analysed Radius = A network radius from the Initial Point(s) that will define which Sample features will be analysed;
 Aggregation Scale = A network radius from each Sample feature thtat will define which BCAA Fabric Layer features will be aggregate for the analysis;
 Street Network = A line layer that will define the street network to search features;
 Intersections = A point layer for analysing the intersection density of the network;
-BCAA Fabric Layer = A polygon layer based on the British Columbia Asssessment Authority land fabric data;
-Sample = Any geometry layer that will be used as sample units for the analysis.
+OSM Land Data = A polygon layer based on the Open Street Map land data that can be downloaded using the land.py algorithm in this repository;
+Sample = Any geometry layer that will be used as sample units for the analysis;
+Target CRS = The EPSG code of the desired Coordinate Reference System.
 OUTPUTS:
 res = Area of residential use aggregated based on the defined scale.
 ret = Area of retail use aggregated based on the defined scale.
@@ -116,13 +117,18 @@ Nicholas Martino. nicholas.martino@hotmail.com''')
             self.tr("Intersections"),            
             [QgsProcessing.TypeVectorPoint], None, False))
         self.addParameter(QgsProcessingParameterVectorLayer(
-            self.bcaa_fabric,
-            self.tr("BCAA Fabric Layer"), 
+            self.osm_land,
+            self.tr("OSM Land Data"), 
             [QgsProcessing.TypeVectorPolygon], None, False))        
         self.addParameter(QgsProcessingParameterFeatureSource(
             self.sample_input,
             self.tr("Sample"),
             [QgsProcessing.TypeVectorAnyGeometry], None, False))
+        self.addParameter(QgsProcessingParameterNumber(
+            self.target_crs, 
+            self.tr("Target CRS"), 
+            QgsProcessingParameterNumber.Double,
+            QVariant(1000)))
         self.addParameter(QgsProcessingParameterFeatureSink(
             self.sample_output,
             self.tr("Walkability")))
@@ -133,14 +139,15 @@ Nicholas Martino. nicholas.martino@hotmail.com''')
         aggregation_scale = self.parameterAsDouble(parameters, self.aggregation_scale,context)        
         street_network = self.parameterAsVectorLayer(parameters, self.street_network, context)
         intersections = self.parameterAsVectorLayer(parameters, self.intersections, context)
-        bcaa_fabric = self.parameterAsVectorLayer(parameters, self.bcaa_fabric, context)
+        osm_land = self.parameterAsVectorLayer(parameters, self.osm_land, context)
         sample_input = self.parameterAsVectorLayer(parameters, self.sample_input, context)
+        target_crs = self.parameterAsDouble(parameters, self.target_crs,context)
 
         # Analyze network reach 
         outputs = {}
-        outputs['native:reprojectlayer_1']=processing.run('native:reprojectlayer', {'INPUT':street_network,'TARGET_CRS':parameters['crs']}, context=context, feedback=feedback)
-        outputs['native:reprojectlayer_4']=processing.run('native:reprojectlayer', {'INPUT':initial_points,'TARGET_CRS':parameters['crs']}, context=context, feedback=feedback)
-        outputs['native:reprojectlayer_3']=processing.run('native:reprojectlayer', {'INPUT':sample_input,'TARGET_CRS':parameters['crs']}, context=context, feedback=feedback)
+        outputs['native:reprojectlayer_1']=processing.run('native:reprojectlayer', {'INPUT':street_network,'TARGET_CRS':target_crs}, context=context, feedback=feedback)
+        outputs['native:reprojectlayer_4']=processing.run('native:reprojectlayer', {'INPUT':initial_points,'TARGET_CRS':target_crs}, context=context, feedback=feedback)
+        outputs['native:reprojectlayer_3']=processing.run('native:reprojectlayer', {'INPUT':sample_input,'TARGET_CRS':target_crs}, context=context, feedback=feedback)
         outputs['qgis:serviceareafromlayer_2']=processing.run('qgis:serviceareafromlayer', {
                 'DEFAULT_DIRECTION':2,
                 'DEFAULT_SPEED':5,
@@ -148,7 +155,7 @@ Nicholas Martino. nicholas.martino@hotmail.com''')
                 'INPUT':outputs['native:reprojectlayer_1']['OUTPUT'],
                 'START_POINTS':outputs['native:reprojectlayer_4']['OUTPUT'],
                 'STRATEGY':0,'TOLERANCE':0,'TRAVEL_COST':analysed_radius})
-        outputs['native:reprojectlayer_2']=processing.run('native:reprojectlayer', {'INPUT':sample_input,'TARGET_CRS':parameters['crs']}, context=context, feedback=feedback)
+        outputs['native:reprojectlayer_2']=processing.run('native:reprojectlayer', {'INPUT':sample_input,'TARGET_CRS':target_crs}, context=context, feedback=feedback)
         outputs['qgis:minimumboundinggeometry_1']=processing.run('qgis:minimumboundinggeometry', {'INPUT':outputs['qgis:serviceareafromlayer_2']['OUTPUT_LINES'],'TYPE':3}, context=context, feedback=feedback)
         outputs['native:extractbylocation_1']=processing.run('native:extractbylocation', {'INPUT':outputs['native:reprojectlayer_2']['OUTPUT'],'INTERSECT':outputs['qgis:minimumboundinggeometry_1']['OUTPUT'],'PREDICATE':0}, context=context, feedback=feedback)
         outputs['native:addautoincrementalfield_1']=processing.run('native:addautoincrementalfield', {'FIELD_NAME':"id_parcels-in",'INPUT':outputs['native:extractbylocation_1']['OUTPUT'],'SORT_ASCENDING':True,'SORT_NULLS_FIRST':False,'START':1}, context=context, feedback=feedback)
