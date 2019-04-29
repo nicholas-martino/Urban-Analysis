@@ -283,12 +283,16 @@ Nicholas Martino. nicholas.martino@hotmail.com''')
                 'FORMULA':'''(2*"z_intersection_density")+"z_use_diversity"+"z_residential_density"+"z_retail_far"''',
                 'INPUT':outputs['z_max_view']['OUTPUT'],'NEW_FIELD':True,'OUTPUT':'memory:'}, context=context, feedback=feedback) 
         outputs['qgis:fieldcalculator_10']=processing.run('qgis:fieldcalculator', 
-               {'FIELD_LENGTH':10,'FIELD_NAME':"potential_walk",'FIELD_PRECISION':4,'FIELD_TYPE':0,
-                'FORMULA':'''(("z_number_of_intersections"+"z_max_view")/2)+"z_use_diversity_simpson"+(("z_residential_density" + "z_job_density")/2)''',
+               {'FIELD_LENGTH':10,'FIELD_NAME':"planning_walk",'FIELD_PRECISION':4,'FIELD_TYPE':0,
+                'FORMULA':'''("z_number_of_intersections")+"z_use_diversity_simpson"+(("z_residential_density" + "z_job_density")/2)''',
                 'INPUT':outputs['qgis:fieldcalculator_19']['OUTPUT'],'NEW_FIELD':True,'OUTPUT':'memory:'}, context=context, feedback=feedback)
-
+        outputs['design_walk']=processing.run('qgis:fieldcalculator', 
+               {'FIELD_LENGTH':10,'FIELD_NAME':"design_walk",'FIELD_PRECISION':4,'FIELD_TYPE':0,
+                'FORMULA':'''("z_max_view")''',
+                'INPUT':outputs['qgis:fieldcalculator_19']['OUTPUT'],'NEW_FIELD':True,'OUTPUT':'memory:'}, context=context, feedback=feedback)
+    
         # Export processing results        
-        source = outputs['qgis:fieldcalculator_10']['OUTPUT']
+        source = outputs['design_walk']['OUTPUT']
         (sink, dest_id) = self.parameterAsSink(parameters, self.sample_output, context,source.fields(), source.wkbType(), source.sourceCrs())        
         feedback.pushInfo('{}'.format(source.sourceCrs().authid()))
         if sink is None:
